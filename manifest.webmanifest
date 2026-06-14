@@ -1,0 +1,40 @@
+{
+  "name": "まいにち牧場",
+  "short_name": "まいにち牧場",
+  "description": "毎日の生活習慣チェックと牧場育成を組み合わせたアプリです。",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "lang": "ja",
+  "display": "standalone",
+  "background_color": "#f5f7ed",
+  "theme_color": "#31855b",
+  "orientation": "portrait-primary",
+  "categories": ["education", "productivity", "kids"],
+  "icons": [
+    {
+      "src": "images/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "images/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "images/app-icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "images/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

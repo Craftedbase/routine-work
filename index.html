@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="毎日の生活習慣チェックと牧場育成を組み合わせたアプリです。">
+    <meta name="theme-color" content="#31855b">
+    <meta name="application-name" content="まいにち牧場">
+    <meta name="apple-mobile-web-app-title" content="まいにち牧場">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>まいにち牧場</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="images/app-icon-192.png">
+    <link rel="apple-touch-icon" href="images/app-icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="date-label" id="todayLabel"></p>
+          <h1>まいにち牧場</h1>
+          <p class="version-label">Ver. 0.2.0</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="resetTodayButton" type="button" aria-label="今日のチェックをリセット">
+            <span aria-hidden="true">↺</span>
+          </button>
+          <button class="icon-button" id="settingsMenuButton" type="button" aria-label="保護者メニューを開く">
+            <span aria-hidden="true">☰</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero-panel" aria-label="牧場の様子">
+          <div class="farm-stage">
+            <button class="farm-arrow" id="prevAnimalButton" type="button" aria-label="前の動物">‹</button>
+            <div class="farm-scene" id="farmScene"></div>
+            <button class="farm-arrow" id="nextAnimalButton" type="button" aria-label="次の動物">›</button>
+          </div>
+          <div class="hero-copy">
+            <p class="eyebrow">今日の牧場</p>
+            <h2 id="heroMessage">ミッションでコインを集めよう</h2>
+            <div class="progress-track" aria-label="今日の達成率">
+              <span id="progressFill"></span>
+            </div>
+            <p class="progress-text" id="progressText"></p>
+          </div>
+        </section>
+
+        <section class="stats-grid consumable-stats" aria-label="コインと消耗品">
+          <div class="stat">
+            <img class="stat-icon" src="images/icon-coin.png" alt="" loading="lazy">
+            <span class="stat-label">コイン</span>
+            <strong id="coinsValue">0</strong>
+          </div>
+          <div class="stat">
+            <img class="stat-icon" src="images/icon-feed.png" alt="" loading="lazy">
+            <span class="stat-label">えさ</span>
+            <strong id="feedValue">0</strong>
+          </div>
+          <div class="stat">
+            <img class="stat-icon" src="images/icon-water.png" alt="" loading="lazy">
+            <span class="stat-label">水</span>
+            <strong id="waterValue">0</strong>
+          </div>
+        </section>
+
+        <section class="animal-count-panel" aria-label="どうぶつの数">
+          <div class="animal-count-card">
+            <img src="images/decor-barn.png" alt="" loading="lazy">
+            <div>
+            <span class="stat-label">どうぶつ</span>
+            <strong id="animalCountValue">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <nav class="tabs" aria-label="画面切り替え">
+          <button class="tab active" type="button" data-view="missions">ミッション</button>
+          <button class="tab" type="button" data-view="farm">牧場</button>
+          <button class="tab" type="button" data-view="gacha">どうぶつガチャ</button>
+          <button class="tab" type="button" data-view="shop">ショップ</button>
+          <button class="tab" type="button" data-view="coupons">プレゼント</button>
+          <button class="tab" type="button" data-view="album" hidden>アルバム</button>
+          <button class="tab" type="button" data-view="calendar">カレンダー</button>
+        </nav>
+
+        <section class="view active" id="missionsView">
+          <div class="category-tabs" aria-label="時間帯">
+            <button class="category-tab active" type="button" data-category="morning">朝</button>
+            <button class="category-tab" type="button" data-category="afterSchool">昼</button>
+            <button class="category-tab" type="button" data-category="night">夜</button>
+          </div>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow" id="categoryEyebrow">朝のミッション</p>
+              <h2 id="categoryTitle">出発までにやること</h2>
+            </div>
+            <span class="pill" id="categoryProgress"></span>
+          </div>
+          <div class="task-list" id="taskList"></div>
+        </section>
+
+        <section class="view" id="farmView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">牧場</p>
+              <h2>お世話をする</h2>
+            </div>
+          </div>
+          <div class="animal-detail" id="animalDetail"></div>
+        </section>
+
+        <section class="view" id="gachaView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">どうぶつガチャ</p>
+              <h2>どのどうぶつに出会えるかな</h2>
+            </div>
+            <span class="pill" id="gachaCoins"></span>
+          </div>
+          <div class="gacha-panel" id="animalGachaPanel"></div>
+          <div class="shop-section">
+            <h2>出会えるどうぶつ</h2>
+            <div class="shop-grid" id="animalShopGrid"></div>
+          </div>
+        </section>
+
+        <section class="view" id="shopView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">ショップ</p>
+              <h2>お世話アイテム</h2>
+            </div>
+            <span class="pill" id="shopCoins"></span>
+          </div>
+          <div class="shop-section">
+            <h2>えさと水</h2>
+            <div class="shop-grid" id="supplyShopGrid"></div>
+          </div>
+          <div class="shop-section muted-section">
+            <h2>今後のアップデート候補</h2>
+            <div class="idea-grid" id="futureIdeaGrid"></div>
+          </div>
+        </section>
+
+        <section class="view" id="couponsView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow" id="couponEyebrow">ひみつ</p>
+              <h2 id="couponTitle">まだなにもありません</h2>
+            </div>
+          </div>
+          <div class="coupon-grid" id="couponGrid"></div>
+        </section>
+
+        <section class="view" id="albumView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">アルバム</p>
+              <h2>牧場の記録</h2>
+            </div>
+          </div>
+          <div class="album-grid" id="albumGrid"></div>
+        </section>
+
+        <section class="view" id="calendarView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">カレンダー</p>
+              <h2>最近のがんばり</h2>
+            </div>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+
+        <section class="view" id="settingsView">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">設定</p>
+              <h2>家族で調整する</h2>
+            </div>
+          </div>
+
+          <form class="guardian-settings" id="guardianCodeForm">
+            <div>
+              <p class="eyebrow">保護者コード</p>
+              <h2>大事な操作を守る</h2>
+              <p class="helper-text" id="guardianStatus"></p>
+            </div>
+            <label>
+              現在のコード
+              <input id="currentGuardianCode" type="password" inputmode="numeric" autocomplete="new-password" placeholder="初回は空でOK">
+            </label>
+            <label>
+              新しいコード
+              <input id="newGuardianCode" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" placeholder="4文字以上">
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">コードを保存</button>
+            </div>
+          </form>
+
+          <form class="coupon-form" id="couponTemplateForm">
+            <input type="hidden" id="couponTemplateIndex">
+            <div>
+              <p class="eyebrow">クーポン内容</p>
+              <h2>お礼を編集</h2>
+              <p class="helper-text">どうぶつが恩返しでくれるクーポンの候補です。</p>
+            </div>
+            <label>
+              クーポン名
+              <input id="couponTemplateTitle" maxlength="24" placeholder="例: 公園で遊ぶ券">
+            </label>
+            <label>
+              内容
+              <input id="couponTemplateDescription" maxlength="56" placeholder="例: 週末に公園で30分遊べる">
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">クーポンを保存</button>
+              <button class="secondary-button" id="cancelCouponEditButton" type="button">新しく追加</button>
+            </div>
+          </form>
+          <div class="settings-list" id="couponSettingsList"></div>
+
+          <form class="task-form" id="taskForm">
+            <input type="hidden" id="taskId">
+            <label>
+              ミッション名
+              <input id="taskTitle" name="title" required maxlength="24" placeholder="例: 水とうを入れる">
+            </label>
+            <label>
+              時間帯
+              <select id="taskCategory" name="category">
+                <option value="morning">朝</option>
+                <option value="afterSchool">昼</option>
+                <option value="night">夜</option>
+              </select>
+            </label>
+            <label>
+              コイン
+              <input id="taskCoins" name="coins" type="number" min="0" max="300" value="20">
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">保存</button>
+              <button class="secondary-button" id="cancelEditButton" type="button">新しく追加</button>
+            </div>
+          </form>
+          <div class="settings-list" id="settingsList"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal-backdrop" id="guardianModal" hidden>
+      <div class="guardian-dialog" role="dialog" aria-modal="true" aria-labelledby="guardianTitle">
+        <form id="guardianForm">
+          <h2 id="guardianTitle">保護者の承認</h2>
+          <p class="helper-text" id="guardianMessage"></p>
+          <label id="guardianCodeLabel">
+            保護者コード
+            <input id="guardianCodeInput" type="password" inputmode="numeric" autocomplete="new-password">
+          </label>
+          <label id="guardianNewCodeLabel" hidden>
+            新しい保護者コード
+            <input id="guardianNewCodeInput" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12">
+          </label>
+          <p class="error-text" id="guardianError" aria-live="polite"></p>
+          <div class="form-actions">
+            <button class="primary-button" type="submit">承認する</button>
+            <button class="secondary-button" id="guardianCancelButton" type="button">キャンセル</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
