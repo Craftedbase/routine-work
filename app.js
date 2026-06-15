@@ -7,6 +7,10 @@ const AUDIO_ROOT = assetUrl("assets/audio/");
 const FULL_DAY_COIN_BONUS = 50;
 const MAX_ANIMAL_NAME_LENGTH = 16;
 const ANIMAL_GACHA_COST = 300;
+// Test seed: set to false before release.
+const TEST_STATE_ENABLED = true;
+const TEST_COIN_BALANCE = 9999;
+const TEST_SUPPLY_COUNT = 99;
 
 const audioAssets = {
   bgm: audioSourceCandidates("bgm/bgm-main.mp3"),
@@ -102,6 +106,7 @@ const futureIdeas = [
 
 const state = loadState();
 applyDailyDecay();
+applyTestState();
 let activeView = "missions";
 let activeCategory = getSuggestedCategory();
 let selectedAnimalIndex = 0;
@@ -369,6 +374,7 @@ function normalizeState(source) {
     tasks: Array.isArray(source.tasks) && source.tasks.length ? source.tasks.map(normalizeTask) : defaultTasks.map((task) => ({ ...task })),
     checks: source.checks && typeof source.checks === "object" ? source.checks : {},
     spentCoins: Number.isFinite(source.spentCoins) ? source.spentCoins : 0,
+    bonusCoins: Math.max(0, Number(source.bonusCoins) || 0),
     inventory: normalizeInventory(source.inventory),
     animals: Array.isArray(source.animals) ? source.animals.map(normalizeAnimal) : [],
     coupons: Array.isArray(source.coupons) ? source.coupons : [],
@@ -377,6 +383,54 @@ function normalizeState(source) {
     couponTemplates: normalizeCouponTemplates(source.couponTemplates),
     audioSettings: normalizeAudioSettings(source.audioSettings)
   };
+}
+
+function applyTestState() {
+  if (!TEST_STATE_ENABLED) return;
+  let changed = false;
+  const stats = getStats();
+  if (stats.coinBalance < TEST_COIN_BALANCE) {
+    state.bonusCoins += TEST_COIN_BALANCE - stats.coinBalance;
+    changed = true;
+  }
+  supplies.forEach((supply) => {
+    if ((state.inventory[supply.id] || 0) < TEST_SUPPLY_COUNT) {
+      state.inventory[supply.id] = TEST_SUPPLY_COUNT;
+      changed = true;
+    }
+  });
+  const today = todayKey();
+  animalTypes.forEach((type) => {
+    let animal = state.animals.find((item) => item.type === type.id && item.status === "active");
+    if (!animal) {
+      animal = normalizeAnimal({
+        id: generateId(),
+        type: type.id,
+        name: `${type.label}1`,
+        createdAt: new Date().toISOString()
+      });
+      state.animals.push(animal);
+      changed = true;
+    }
+    const nextValues = {
+      hunger: 100,
+      thirst: 100,
+      health: 100,
+      affection: 120,
+      lastDecayDate: today,
+      lastFedDate: today,
+      lastWateredDate: today,
+      lastCaredDate: today,
+      status: "active"
+    };
+    Object.entries(nextValues).forEach(([key, value]) => {
+      if (animal[key] !== value) {
+        animal[key] = value;
+        changed = true;
+      }
+    });
+  });
+  if (changed) saveState();
 }
 
 function normalizeTask(task) {
@@ -995,7 +1049,7 @@ function hashGuardianCode(code) { const text = `routine-guardian:${code}`; let h
 function getStats() {
   const enabledTasks = state.tasks.filter((task) => task.enabled).sort(sortTasks); const today = todayKey();
   const completedToday = enabledTasks.filter((task) => isDone(today, task.id)).length; const todayPercent = enabledTasks.length ? Math.round((completedToday / enabledTasks.length) * 100) : 0;
-  const totalCoins = calculateTotalCoins(enabledTasks); const coinBalance = totalCoins - state.spentCoins; const activeAnimals = getActiveAnimals();
+  const totalCoins = calculateTotalCoins(enabledTasks) + state.bonusCoins; const coinBalance = totalCoins - state.spentCoins; const activeAnimals = getActiveAnimals();
   const needsCareCount = activeAnimals.filter((animal) => animal.lastFedDate !== today || animal.lastWateredDate !== today || animal.lastCaredDate !== today).length;
   return { enabledTasks, completedToday, todayPercent, totalCoins, coinBalance, activeAnimals, needsCareCount };
 }
