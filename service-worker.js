@@ -1,6 +1,6 @@
 const CACHE_PREFIX = "mainichi-farm";
-const STATIC_CACHE = `${CACHE_PREFIX}-static-v5`;
-const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v5`;
+const STATIC_CACHE = `${CACHE_PREFIX}-static-v7`;
+const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v7`;
 
 const PRECACHE_URLS = [
   "./",

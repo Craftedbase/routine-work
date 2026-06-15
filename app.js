@@ -1,27 +1,28 @@
 
 const STORAGE_KEY = "routineFarmState.v1";
 const LEGACY_KEY = "routineQuestState.v1";
+const APP_BASE_URL = getAppBaseUrl();
 const IMAGE_ROOT = "images";
-const AUDIO_ROOT = "assets/audio";
+const AUDIO_ROOT = assetUrl("assets/audio/");
 const FULL_DAY_COIN_BONUS = 50;
 const MAX_ANIMAL_NAME_LENGTH = 16;
 const ANIMAL_GACHA_COST = 300;
 
 const audioAssets = {
-  bgm: `${AUDIO_ROOT}/bgm/bgm-main.mp3`,
+  bgm: audioSourceCandidates("bgm/bgm-main.mp3"),
   se: {
-    tap: `${AUDIO_ROOT}/se/se-tap.mp3`,
-    transition: `${AUDIO_ROOT}/se/se-transition-02.mp3`,
-    gachaStart: `${AUDIO_ROOT}/se/se-transition-01.mp3`,
-    gachaOpen: `${AUDIO_ROOT}/se/se-complete.mp3`,
-    gachaNormal: `${AUDIO_ROOT}/se/se-buy.mp3`,
-    gachaRare: `${AUDIO_ROOT}/se/se-stamp.mp3`,
-    gachaSuperRare: `${AUDIO_ROOT}/se/se-reward.mp3`,
-    gachaSecret: `${AUDIO_ROOT}/se/se-all-clear.mp3`,
-    complete: `${AUDIO_ROOT}/se/se-complete.mp3`,
-    stamp: `${AUDIO_ROOT}/se/se-stamp.mp3`,
-    reward: `${AUDIO_ROOT}/se/se-reward.mp3`,
-    allClear: `${AUDIO_ROOT}/se/se-all-clear.mp3`
+    tap: audioSourceCandidates("se/se-tap.mp3"),
+    transition: audioSourceCandidates("se/se-transition-02.mp3"),
+    gachaStart: audioSourceCandidates("se/se-transition-01.mp3"),
+    gachaOpen: audioSourceCandidates("se/se-complete.mp3"),
+    gachaNormal: audioSourceCandidates("se/se-buy.mp3"),
+    gachaRare: audioSourceCandidates("se/se-stamp.mp3"),
+    gachaSuperRare: audioSourceCandidates("se/se-reward.mp3"),
+    gachaSecret: audioSourceCandidates("se/se-all-clear.mp3"),
+    complete: audioSourceCandidates("se/se-complete.mp3"),
+    stamp: audioSourceCandidates("se/se-stamp.mp3"),
+    reward: audioSourceCandidates("se/se-reward.mp3"),
+    allClear: audioSourceCandidates("se/se-all-clear.mp3")
   }
 };
 
@@ -107,6 +108,7 @@ let selectedAnimalIndex = 0;
 let toastTimer = null;
 let guardianMode = "verify";
 let pendingGuardianAction = null;
+let appStarted = false;
 let audioUnlocked = false;
 let bgmDucked = false;
 let gachaAnimation = { phase: "idle", result: null, timers: [], button: null, revealed: false };
@@ -115,8 +117,10 @@ const audioPlayers = {
   bgm: null,
   se: {}
 };
+const audioLogKeys = new Set();
 
 const els = {
+  startScreen: document.querySelector("#startScreen"), startButton: document.querySelector("#startButton"), appShell: document.querySelector("#appShell"),
   todayLabel: document.querySelector("#todayLabel"), heroMessage: document.querySelector("#heroMessage"), progressFill: document.querySelector("#progressFill"), progressText: document.querySelector("#progressText"),
   farmScene: document.querySelector("#farmScene"), prevAnimalButton: document.querySelector("#prevAnimalButton"), nextAnimalButton: document.querySelector("#nextAnimalButton"),
   coinsValue: document.querySelector("#coinsValue"), feedValue: document.querySelector("#feedValue"), waterValue: document.querySelector("#waterValue"), animalCountValue: document.querySelector("#animalCountValue"),
@@ -136,11 +140,10 @@ render();
 registerServiceWorker();
 
 function bindEvents() {
+  els.startButton.addEventListener("click", startApp);
   document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => { playSe("transition"); activeView = button.dataset.view; render(); }));
   document.querySelectorAll(".category-tab").forEach((button) => button.addEventListener("click", () => { playSe("transition"); activeCategory = button.dataset.category; render(); }));
   document.addEventListener("click", (event) => { if (shouldPlayTapSe(event)) playSe("tap"); }, true);
-  document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
-  document.addEventListener("keydown", unlockAudio, { once: true, capture: true });
   els.prevAnimalButton.addEventListener("click", () => moveAnimal(-1));
   els.nextAnimalButton.addEventListener("click", () => moveAnimal(1));
   document.querySelector("#resetTodayButton").addEventListener("click", () => requestGuardianApproval("今日のチェックをリセットします。", () => { state.checks[todayKey()] = {}; saveState(); showToast("今日のチェックをリセットしました"); render(); }));
@@ -168,34 +171,46 @@ function registerServiceWorker() {
 }
 
 function initAudio() {
-  audioPlayers.bgm = new Audio(audioAssets.bgm);
+  audioPlayers.bgm = createAudioPlayer("BGM: bgm-main.mp3", audioAssets.bgm);
   audioPlayers.bgm.loop = true;
-  audioPlayers.bgm.preload = "auto";
   Object.entries(audioAssets.se).forEach(([key, source]) => {
-    const sound = new Audio(source);
-    sound.preload = "auto";
-    audioPlayers.se[key] = sound;
+    audioPlayers.se[key] = createAudioPlayer(`SE: ${key}`, source);
   });
   applyAudioSettings();
 }
 
-function unlockAudio(event) {
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+  els.startScreen.hidden = true;
+  els.appShell.hidden = false;
+  unlockAudio();
+  render();
+}
+
+function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  if (event?.target?.id === "bgmEnabled") return;
   startBgm();
 }
 
 function startBgm() {
   if (!audioPlayers.bgm || !state.audioSettings.bgmEnabled) return;
+  if (state.audioSettings.bgmVolume <= 0) {
+    logAudioOnce("bgm-volume-zero", "[audio] BGM音量が0です。設定画面でBGM音量を上げると再生されます。");
+    return;
+  }
   audioPlayers.bgm.volume = getBgmVolume();
-  audioPlayers.bgm.play().catch(() => {});
+  playAudioElement(audioPlayers.bgm, "BGM: bgm-main.mp3", { logAsError: true });
 }
 
 function applyAudioSettings() {
   if (audioPlayers.bgm) {
     audioPlayers.bgm.volume = getBgmVolume();
-    if (!state.audioSettings.bgmEnabled) audioPlayers.bgm.pause();
+    if (!state.audioSettings.bgmEnabled) {
+      audioPlayers.bgm.pause();
+      logAudioOnce("bgm-disabled", "[audio] BGM設定がOFFです。設定画面でBGMをONにすると再生されます。");
+    }
     else if (audioUnlocked) startBgm();
   }
   Object.values(audioPlayers.se).forEach((sound) => {
@@ -206,17 +221,32 @@ function applyAudioSettings() {
 function updateAudioSetting(key, value) {
   if (key === "bgmEnabled" || key === "seEnabled") state.audioSettings[key] = Boolean(value);
   else state.audioSettings[key] = clamp(Number(value) || 0, 0, 1);
+  audioLogKeys.delete("bgm-disabled");
+  audioLogKeys.delete("se-disabled");
+  audioLogKeys.delete("bgm-volume-zero");
+  audioLogKeys.delete("se-volume-zero");
   applyAudioSettings();
   saveState();
 }
 
 function playSe(name) {
-  if (!state.audioSettings.seEnabled) return;
+  if (!state.audioSettings.seEnabled) {
+    logAudioOnce("se-disabled", "[audio] SE設定がOFFです。設定画面でSEをONにすると効果音が再生されます。");
+    return;
+  }
+  if (state.audioSettings.seVolume <= 0) {
+    logAudioOnce("se-volume-zero", "[audio] SE音量が0です。設定画面でSE音量を上げると効果音が再生されます。");
+    return;
+  }
   const baseSound = audioPlayers.se[name];
-  if (!baseSound) return;
+  if (!baseSound) {
+    console.error(`[audio] 未登録の効果音です: ${name}`);
+    return;
+  }
   const sound = baseSound.cloneNode(true);
   sound.volume = state.audioSettings.seVolume;
-  sound.play().catch(() => {});
+  sound.addEventListener("error", () => logAudioLoadError(`SE: ${name}`, sound.currentSrc || sound.src, sound.error), { once: true });
+  playAudioElement(sound, `SE: ${name}`);
 }
 
 function getBgmVolume() {
@@ -231,8 +261,91 @@ function setBgmDucked(ducked) {
 function shouldPlayTapSe(event) {
   const button = event.target.closest("button");
   if (!button) return false;
+  if (button.id === "startButton") return false;
   if (button.matches(".tab, .category-tab, .farm-arrow")) return false;
   return button.id !== "settingsMenuButton";
+}
+
+function getAppBaseUrl() {
+  const configuredBase = window.__APP_BASE_URL__;
+  if (typeof configuredBase === "string" && configuredBase && !configuredBase.includes("%")) {
+    return new URL(configuredBase, window.location.href).href;
+  }
+  const script = document.currentScript || document.querySelector('script[src$="app.js"]');
+  if (script?.src) return new URL("./", script.src).href;
+  return new URL("./", window.location.href).href;
+}
+
+function assetUrl(relativePath) {
+  return new URL(relativePath.replace(/^\/+/, ""), APP_BASE_URL).href;
+}
+
+function audioSourceCandidates(relativePath) {
+  return [
+    `${AUDIO_ROOT}${relativePath}`,
+    assetUrl(`public/assets/audio/${relativePath}`)
+  ];
+}
+
+function createAudioPlayer(label, sources) {
+  const sourceList = Array.isArray(sources) ? sources : [sources];
+  const audio = new Audio();
+  audio.preload = "auto";
+  let sourceIndex = 0;
+
+  const setSource = () => {
+    audio.src = sourceList[sourceIndex];
+    audio.load();
+  };
+
+  audio.addEventListener("error", () => {
+    const failedSource = sourceList[sourceIndex];
+    if (sourceIndex < sourceList.length - 1) {
+      console.warn(`[audio] ${label} を読み込めませんでした。別の候補を試します: ${failedSource}`);
+      sourceIndex += 1;
+      setSource();
+      return;
+    }
+    logAudioLoadError(label, failedSource, audio.error);
+  });
+
+  setSource();
+  return audio;
+}
+
+function playAudioElement(audio, label, options = {}) {
+  let playPromise;
+  try {
+    playPromise = audio.play();
+  } catch (error) {
+    logAudioPlayError(label, error, options.logAsError);
+    return;
+  }
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch((error) => logAudioPlayError(label, error, options.logAsError));
+  }
+}
+
+function logAudioPlayError(label, error, logAsError = false) {
+  const logger = logAsError ? console.error : console.warn;
+  logger.call(console, `[audio] ${label} の再生に失敗しました。ブラウザの自動再生制限、ミュート設定、音量、または音源パスを確認してください。`, error);
+}
+
+function logAudioLoadError(label, source, error) {
+  const codeMap = {
+    1: "読み込みが中断されました",
+    2: "ネットワークエラーで読み込めません",
+    3: "音源のデコードに失敗しました",
+    4: "対応していない形式、またはファイルが見つかりません"
+  };
+  const detail = error ? (codeMap[error.code] || `エラーコード ${error.code}`) : "詳細不明";
+  console.error(`[audio] ${label} の音源を読み込めません: ${source} (${detail})`);
+}
+
+function logAudioOnce(key, message) {
+  if (audioLogKeys.has(key)) return;
+  audioLogKeys.add(key);
+  console.warn(message);
 }
 function loadState() {
   const current = readStoredState(STORAGE_KEY);

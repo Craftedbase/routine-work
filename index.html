@@ -16,7 +16,18 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <div class="app-shell">
+    <section class="start-screen" id="startScreen" aria-labelledby="startTitle">
+      <div class="start-scene" aria-hidden="true">
+        <img class="start-animal" src="images/animal-cow-normal.png" alt="">
+      </div>
+      <div class="start-copy">
+        <p class="date-label">Ver. 0.2.0</p>
+        <h1 id="startTitle">まいにち牧場</h1>
+        <button class="primary-button start-button" id="startButton" type="button">はじめる</button>
+      </div>
+    </section>
+
+    <div class="app-shell" id="appShell" hidden>
       <header class="topbar">
         <div>
           <p class="date-label" id="todayLabel"></p>
@@ -302,6 +313,9 @@
       </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module">
+      window.__APP_BASE_URL__ = import.meta.env?.BASE_URL || window.__APP_BASE_URL__ || "";
+    </script>
+    <script src="app.js" defer></script>
   </body>
 </html>
