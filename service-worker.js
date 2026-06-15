@@ -1,6 +1,6 @@
 const CACHE_PREFIX = "mainichi-farm";
-const STATIC_CACHE = `${CACHE_PREFIX}-static-v2`;
-const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v2`;
+const STATIC_CACHE = `${CACHE_PREFIX}-static-v5`;
+const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v5`;
 
 const PRECACHE_URLS = [
   "./",
@@ -8,6 +8,15 @@ const PRECACHE_URLS = [
   "./styles.css",
   "./app.js",
   "./manifest.webmanifest",
+  "./assets/audio/bgm/bgm-main.mp3",
+  "./assets/audio/se/se-all-clear.mp3",
+  "./assets/audio/se/se-buy.mp3",
+  "./assets/audio/se/se-complete.mp3",
+  "./assets/audio/se/se-reward.mp3",
+  "./assets/audio/se/se-stamp.mp3",
+  "./assets/audio/se/se-tap.mp3",
+  "./assets/audio/se/se-transition-01.mp3",
+  "./assets/audio/se/se-transition-02.mp3",
   "./images/app-icon-192.png",
   "./images/app-icon-512.png",
   "./images/app-icon-maskable-192.png",

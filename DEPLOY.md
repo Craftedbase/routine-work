@@ -14,6 +14,7 @@
    - `manifest.webmanifest`
    - `service-worker.js`
    - `images` フォルダ
+   - `assets` フォルダ
    - `README.md`
    - `requirements.md`
    - `implementation_plan.md`

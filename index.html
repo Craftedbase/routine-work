@@ -204,6 +204,30 @@
             </div>
           </form>
 
+          <section class="audio-settings" aria-label="サウンド設定">
+            <div>
+              <p class="eyebrow">サウンド</p>
+              <h2>音の設定</h2>
+              <p class="helper-text">BGMと効果音を別々に調整できます。</p>
+            </div>
+            <label class="toggle-row">
+              <input id="bgmEnabled" type="checkbox">
+              BGM
+            </label>
+            <label>
+              BGM音量
+              <input id="bgmVolume" type="range" min="0" max="100" step="1">
+            </label>
+            <label class="toggle-row">
+              <input id="seEnabled" type="checkbox">
+              SE
+            </label>
+            <label>
+              SE音量
+              <input id="seVolume" type="range" min="0" max="100" step="1">
+            </label>
+          </section>
+
           <form class="coupon-form" id="couponTemplateForm">
             <input type="hidden" id="couponTemplateIndex">
             <div>
@@ -255,6 +279,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="gacha-overlay" id="gachaOverlay" hidden></div>
     <div class="modal-backdrop" id="guardianModal" hidden>
       <div class="guardian-dialog" role="dialog" aria-modal="true" aria-labelledby="guardianTitle">
         <form id="guardianForm">

@@ -2,9 +2,35 @@
 const STORAGE_KEY = "routineFarmState.v1";
 const LEGACY_KEY = "routineQuestState.v1";
 const IMAGE_ROOT = "images";
+const AUDIO_ROOT = "assets/audio";
 const FULL_DAY_COIN_BONUS = 50;
 const MAX_ANIMAL_NAME_LENGTH = 16;
 const ANIMAL_GACHA_COST = 300;
+
+const audioAssets = {
+  bgm: `${AUDIO_ROOT}/bgm/bgm-main.mp3`,
+  se: {
+    tap: `${AUDIO_ROOT}/se/se-tap.mp3`,
+    transition: `${AUDIO_ROOT}/se/se-transition-02.mp3`,
+    gachaStart: `${AUDIO_ROOT}/se/se-transition-01.mp3`,
+    gachaOpen: `${AUDIO_ROOT}/se/se-complete.mp3`,
+    gachaNormal: `${AUDIO_ROOT}/se/se-buy.mp3`,
+    gachaRare: `${AUDIO_ROOT}/se/se-stamp.mp3`,
+    gachaSuperRare: `${AUDIO_ROOT}/se/se-reward.mp3`,
+    gachaSecret: `${AUDIO_ROOT}/se/se-all-clear.mp3`,
+    complete: `${AUDIO_ROOT}/se/se-complete.mp3`,
+    stamp: `${AUDIO_ROOT}/se/se-stamp.mp3`,
+    reward: `${AUDIO_ROOT}/se/se-reward.mp3`,
+    allClear: `${AUDIO_ROOT}/se/se-all-clear.mp3`
+  }
+};
+
+const defaultAudioSettings = {
+  bgmEnabled: true,
+  seEnabled: true,
+  bgmVolume: 0.3,
+  seVolume: 0.3
+};
 
 const categories = {
   morning: { label: "朝", eyebrow: "朝のミッション", title: "出発までにやること" },
@@ -13,11 +39,20 @@ const categories = {
 };
 
 const rarityMeta = {
-  N: { label: "ノーマル", weight: 18 },
-  R: { label: "レア", weight: 12 },
-  SR: { label: "スーパーレア", weight: 7 },
-  SSR: { label: "とくべつレア", weight: 4 }
+  N: { label: "ふつう！", weight: 18, animation: "normal", se: "gachaNormal" },
+  R: { label: "レア！", weight: 12, animation: "rare", se: "gachaRare" },
+  SR: { label: "すごい！", weight: 7, animation: "superRare", se: "gachaSuperRare" },
+  SSR: { label: "きせきの どうぶつ！", weight: 4, animation: "secret", se: "gachaSecret" }
 };
+
+const gachaPhaseTimeline = [
+  { phase: "shake", at: 360 },
+  { phase: "fly", at: 760 },
+  { phase: "charge", at: 1780 },
+  { phase: "silhouette", at: 2680 },
+  { phase: "reveal", at: 3520 },
+  { phase: "result", at: 4420 }
+];
 
 const defaultTasks = [
   ["起きる", "morning", 20], ["顔を洗う", "morning", 15], ["着替える", "morning", 15], ["朝ごはん", "morning", 20], ["歯磨き", "morning", 15], ["持ち物チェック", "morning", 20], ["ランドセルを持つ", "morning", 15], ["出発", "morning", 15],
@@ -72,6 +107,14 @@ let selectedAnimalIndex = 0;
 let toastTimer = null;
 let guardianMode = "verify";
 let pendingGuardianAction = null;
+let audioUnlocked = false;
+let bgmDucked = false;
+let gachaAnimation = { phase: "idle", result: null, timers: [], button: null, revealed: false };
+
+const audioPlayers = {
+  bgm: null,
+  se: {}
+};
 
 const els = {
   todayLabel: document.querySelector("#todayLabel"), heroMessage: document.querySelector("#heroMessage"), progressFill: document.querySelector("#progressFill"), progressText: document.querySelector("#progressText"),
@@ -81,22 +124,27 @@ const els = {
   animalDetail: document.querySelector("#animalDetail"), animalGachaPanel: document.querySelector("#animalGachaPanel"), animalShopGrid: document.querySelector("#animalShopGrid"), supplyShopGrid: document.querySelector("#supplyShopGrid"), futureIdeaGrid: document.querySelector("#futureIdeaGrid"), gachaCoins: document.querySelector("#gachaCoins"), shopCoins: document.querySelector("#shopCoins"),
   couponEyebrow: document.querySelector("#couponEyebrow"), couponTitle: document.querySelector("#couponTitle"), couponGrid: document.querySelector("#couponGrid"), albumGrid: document.querySelector("#albumGrid"), calendarGrid: document.querySelector("#calendarGrid"),
   guardianStatus: document.querySelector("#guardianStatus"), guardianCodeForm: document.querySelector("#guardianCodeForm"), currentGuardianCode: document.querySelector("#currentGuardianCode"), newGuardianCode: document.querySelector("#newGuardianCode"),
+  bgmEnabled: document.querySelector("#bgmEnabled"), bgmVolume: document.querySelector("#bgmVolume"), seEnabled: document.querySelector("#seEnabled"), seVolume: document.querySelector("#seVolume"),
   couponTemplateForm: document.querySelector("#couponTemplateForm"), couponTemplateIndex: document.querySelector("#couponTemplateIndex"), couponTemplateTitle: document.querySelector("#couponTemplateTitle"), couponTemplateDescription: document.querySelector("#couponTemplateDescription"), couponSettingsList: document.querySelector("#couponSettingsList"),
   taskForm: document.querySelector("#taskForm"), taskId: document.querySelector("#taskId"), taskTitle: document.querySelector("#taskTitle"), taskCategory: document.querySelector("#taskCategory"), taskCoins: document.querySelector("#taskCoins"), settingsList: document.querySelector("#settingsList"),
-  guardianModal: document.querySelector("#guardianModal"), guardianForm: document.querySelector("#guardianForm"), guardianTitle: document.querySelector("#guardianTitle"), guardianMessage: document.querySelector("#guardianMessage"), guardianCodeLabel: document.querySelector("#guardianCodeLabel"), guardianCodeInput: document.querySelector("#guardianCodeInput"), guardianNewCodeLabel: document.querySelector("#guardianNewCodeLabel"), guardianNewCodeInput: document.querySelector("#guardianNewCodeInput"), guardianError: document.querySelector("#guardianError"), guardianCancelButton: document.querySelector("#guardianCancelButton"), toast: document.querySelector("#toast")
+  gachaOverlay: document.querySelector("#gachaOverlay"), guardianModal: document.querySelector("#guardianModal"), guardianForm: document.querySelector("#guardianForm"), guardianTitle: document.querySelector("#guardianTitle"), guardianMessage: document.querySelector("#guardianMessage"), guardianCodeLabel: document.querySelector("#guardianCodeLabel"), guardianCodeInput: document.querySelector("#guardianCodeInput"), guardianNewCodeLabel: document.querySelector("#guardianNewCodeLabel"), guardianNewCodeInput: document.querySelector("#guardianNewCodeInput"), guardianError: document.querySelector("#guardianError"), guardianCancelButton: document.querySelector("#guardianCancelButton"), toast: document.querySelector("#toast")
 };
 
+initAudio();
 bindEvents();
 render();
 registerServiceWorker();
 
 function bindEvents() {
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => { activeView = button.dataset.view; render(); }));
-  document.querySelectorAll(".category-tab").forEach((button) => button.addEventListener("click", () => { activeCategory = button.dataset.category; render(); }));
+  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => { playSe("transition"); activeView = button.dataset.view; render(); }));
+  document.querySelectorAll(".category-tab").forEach((button) => button.addEventListener("click", () => { playSe("transition"); activeCategory = button.dataset.category; render(); }));
+  document.addEventListener("click", (event) => { if (shouldPlayTapSe(event)) playSe("tap"); }, true);
+  document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
+  document.addEventListener("keydown", unlockAudio, { once: true, capture: true });
   els.prevAnimalButton.addEventListener("click", () => moveAnimal(-1));
   els.nextAnimalButton.addEventListener("click", () => moveAnimal(1));
   document.querySelector("#resetTodayButton").addEventListener("click", () => requestGuardianApproval("今日のチェックをリセットします。", () => { state.checks[todayKey()] = {}; saveState(); showToast("今日のチェックをリセットしました"); render(); }));
-  document.querySelector("#settingsMenuButton").addEventListener("click", () => requestGuardianApproval("保護者メニューを開きます。", () => { activeView = "settings"; render(); }));
+  document.querySelector("#settingsMenuButton").addEventListener("click", () => requestGuardianApproval("保護者メニューを開きます。", () => { playSe("transition"); activeView = "settings"; render(); }));
   els.guardianCodeForm.addEventListener("submit", (event) => { event.preventDefault(); changeGuardianCode(); });
   els.guardianForm.addEventListener("submit", (event) => { event.preventDefault(); approveGuardianAction(); });
   els.guardianCancelButton.addEventListener("click", () => closeGuardianModal());
@@ -104,6 +152,11 @@ function bindEvents() {
   document.querySelector("#cancelCouponEditButton").addEventListener("click", clearCouponForm);
   document.querySelector("#cancelEditButton").addEventListener("click", clearTaskForm);
   els.taskForm.addEventListener("submit", (event) => { event.preventDefault(); saveTask(); });
+  els.bgmEnabled.addEventListener("change", () => updateAudioSetting("bgmEnabled", els.bgmEnabled.checked));
+  els.seEnabled.addEventListener("change", () => updateAudioSetting("seEnabled", els.seEnabled.checked));
+  els.bgmVolume.addEventListener("input", () => updateAudioSetting("bgmVolume", Number(els.bgmVolume.value) / 100));
+  els.seVolume.addEventListener("input", () => updateAudioSetting("seVolume", Number(els.seVolume.value) / 100));
+  els.gachaOverlay.addEventListener("click", handleGachaOverlayClick);
 }
 
 function registerServiceWorker() {
@@ -112,6 +165,74 @@ function registerServiceWorker() {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   });
+}
+
+function initAudio() {
+  audioPlayers.bgm = new Audio(audioAssets.bgm);
+  audioPlayers.bgm.loop = true;
+  audioPlayers.bgm.preload = "auto";
+  Object.entries(audioAssets.se).forEach(([key, source]) => {
+    const sound = new Audio(source);
+    sound.preload = "auto";
+    audioPlayers.se[key] = sound;
+  });
+  applyAudioSettings();
+}
+
+function unlockAudio(event) {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (event?.target?.id === "bgmEnabled") return;
+  startBgm();
+}
+
+function startBgm() {
+  if (!audioPlayers.bgm || !state.audioSettings.bgmEnabled) return;
+  audioPlayers.bgm.volume = getBgmVolume();
+  audioPlayers.bgm.play().catch(() => {});
+}
+
+function applyAudioSettings() {
+  if (audioPlayers.bgm) {
+    audioPlayers.bgm.volume = getBgmVolume();
+    if (!state.audioSettings.bgmEnabled) audioPlayers.bgm.pause();
+    else if (audioUnlocked) startBgm();
+  }
+  Object.values(audioPlayers.se).forEach((sound) => {
+    sound.volume = state.audioSettings.seVolume;
+  });
+}
+
+function updateAudioSetting(key, value) {
+  if (key === "bgmEnabled" || key === "seEnabled") state.audioSettings[key] = Boolean(value);
+  else state.audioSettings[key] = clamp(Number(value) || 0, 0, 1);
+  applyAudioSettings();
+  saveState();
+}
+
+function playSe(name) {
+  if (!state.audioSettings.seEnabled) return;
+  const baseSound = audioPlayers.se[name];
+  if (!baseSound) return;
+  const sound = baseSound.cloneNode(true);
+  sound.volume = state.audioSettings.seVolume;
+  sound.play().catch(() => {});
+}
+
+function getBgmVolume() {
+  return clamp(state.audioSettings.bgmVolume * (bgmDucked ? 0.45 : 1), 0, 1);
+}
+
+function setBgmDucked(ducked) {
+  bgmDucked = ducked;
+  if (audioPlayers.bgm) audioPlayers.bgm.volume = getBgmVolume();
+}
+
+function shouldPlayTapSe(event) {
+  const button = event.target.closest("button");
+  if (!button) return false;
+  if (button.matches(".tab, .category-tab, .farm-arrow")) return false;
+  return button.id !== "settingsMenuButton";
 }
 function loadState() {
   const current = readStoredState(STORAGE_KEY);
@@ -140,7 +261,8 @@ function normalizeState(source) {
     coupons: Array.isArray(source.coupons) ? source.coupons : [],
     album: Array.isArray(source.album) ? source.album : [],
     guardianCodeHash: typeof source.guardianCodeHash === "string" ? source.guardianCodeHash : "",
-    couponTemplates: normalizeCouponTemplates(source.couponTemplates)
+    couponTemplates: normalizeCouponTemplates(source.couponTemplates),
+    audioSettings: normalizeAudioSettings(source.audioSettings)
   };
 }
 
@@ -153,6 +275,15 @@ function normalizeInventory(inventory) {
     result[supply.id] = Math.max(0, Number(inventory?.[supply.id]) || 0);
     return result;
   }, {});
+}
+
+function normalizeAudioSettings(settings) {
+  return {
+    bgmEnabled: typeof settings?.bgmEnabled === "boolean" ? settings.bgmEnabled : defaultAudioSettings.bgmEnabled,
+    seEnabled: typeof settings?.seEnabled === "boolean" ? settings.seEnabled : defaultAudioSettings.seEnabled,
+    bgmVolume: clamp(Number(settings?.bgmVolume ?? defaultAudioSettings.bgmVolume), 0, 1),
+    seVolume: clamp(Number(settings?.seVolume ?? defaultAudioSettings.seVolume), 0, 1)
+  };
 }
 
 function normalizeAnimal(animal) {
@@ -276,12 +407,13 @@ function renderShop(stats) {
   els.gachaCoins.textContent = `${stats.coinBalance}コイン`;
   els.shopCoins.textContent = `${stats.coinBalance}コイン`;
   els.animalGachaPanel.innerHTML = `
+    <div class="gacha-machine" aria-hidden="true"></div>
     <div>
       <p class="eyebrow">1回 ${ANIMAL_GACHA_COST}コイン</p>
       <h2>どうぶつと出会う</h2>
       <p class="helper-text">どのどうぶつが来るかはお楽しみ。レアリティが高いほど出会いにくくなります。</p>
     </div>
-    <button class="primary-button" id="animalGachaButton" type="button"${stats.coinBalance < ANIMAL_GACHA_COST ? " disabled" : ""}>ガチャをまわす</button>`;
+    <button class="primary-button gacha-draw-button" id="animalGachaButton" type="button"${stats.coinBalance < ANIMAL_GACHA_COST ? " disabled" : ""}>ガチャをまわす</button>`;
   els.animalGachaPanel.querySelector("#animalGachaButton").addEventListener("click", drawAnimalGacha);
   els.animalShopGrid.innerHTML = "";
   animalTypes.forEach((type) => {
@@ -344,6 +476,7 @@ function renderCalendar() {
 }
 
 function renderSettings() {
+  renderAudioSettings();
   renderCouponSettings();
   els.settingsList.innerHTML = "";
   state.tasks.filter((task) => task.enabled).sort(sortTasks).forEach((task) => {
@@ -353,6 +486,13 @@ function renderSettings() {
     editButton.addEventListener("click", () => editTask(task.id)); deleteButton.addEventListener("click", () => deleteTask(task.id));
     els.settingsList.append(item);
   });
+}
+
+function renderAudioSettings() {
+  els.bgmEnabled.checked = state.audioSettings.bgmEnabled;
+  els.seEnabled.checked = state.audioSettings.seEnabled;
+  els.bgmVolume.value = Math.round(state.audioSettings.bgmVolume * 100);
+  els.seVolume.value = Math.round(state.audioSettings.seVolume * 100);
 }
 
 function renderCouponSettings() {
@@ -377,24 +517,205 @@ function toggleTask(task) {
 
 function applyTaskToggle(task) {
   const date = todayKey(); state.checks[date] ||= {};
+  const enabledTasks = state.tasks.filter((item) => item.enabled);
+  const doneBefore = enabledTasks.filter((item) => isDone(date, item.id)).length;
+  const wasFullDay = isFullDay(date, enabledTasks);
   if (state.checks[date][task.id]) { delete state.checks[date][task.id]; showToast("チェックを戻しました"); }
-  else { state.checks[date][task.id] = new Date().toISOString(); showToast(`${task.title} できた！ ${task.coins}コイン`); }
+  else {
+    state.checks[date][task.id] = new Date().toISOString();
+    showToast(`${task.title} できた！ ${task.coins}コイン`);
+    playSe("complete");
+    if (doneBefore === 0) playSe("stamp");
+    if (!wasFullDay && isFullDay(date, enabledTasks)) playSe("allClear");
+  }
   saveState(); render();
 }
 
 function drawAnimalGacha() {
+  if (gachaAnimation.phase !== "idle") return;
   if (getStats().coinBalance < ANIMAL_GACHA_COST) { showToast("コインが足りません"); return; }
+  const button = document.querySelector("#animalGachaButton");
+  button?.classList.add("gacha-button-press");
+  els.animalGachaPanel.classList.add("shaking");
   const type = pickGachaAnimal();
+  const isNew = !hasKnownAnimalType(type.id);
   state.spentCoins += ANIMAL_GACHA_COST;
-  addAnimalToFarm(type);
-  activeView = "farm";
-  saveState(); showToast(`${type.label}と出会いました`); render();
+  const animal = addAnimalToFarm(type);
+  saveState();
+  startGachaAnimation({ animal, type, isNew, rarity: getRarityInfo(type.rarity) }, button);
 }
 
 function addAnimalToFarm(type) {
   const count = state.animals.filter((animal) => animal.type === type.id).length + 1;
-  state.animals.push(normalizeAnimal({ id: generateId(), type: type.id, name: `${type.label}${count}`, hunger: 75, thirst: 75, health: 90, affection: 15, createdAt: new Date().toISOString(), lastDecayDate: todayKey() }));
+  const animal = normalizeAnimal({ id: generateId(), type: type.id, name: `${type.label}${count}`, hunger: 75, thirst: 75, health: 90, affection: 15, createdAt: new Date().toISOString(), lastDecayDate: todayKey() });
+  state.animals.push(animal);
   selectedAnimalIndex = getActiveAnimals().length - 1;
+  return animal;
+}
+
+function startGachaAnimation(result, button) {
+  clearGachaTimers();
+  gachaAnimation = { phase: "press", result, timers: [], button, revealed: false };
+  setBgmDucked(true);
+  playSe("gachaStart");
+  renderGachaAnimation();
+  gachaPhaseTimeline.forEach(({ phase, at }) => {
+    const timer = setTimeout(() => setGachaPhase(phase), at);
+    gachaAnimation.timers.push(timer);
+  });
+}
+
+function setGachaPhase(phase) {
+  if (gachaAnimation.phase === "idle") return;
+  gachaAnimation.phase = phase;
+  if (phase === "silhouette" && !gachaAnimation.revealed) {
+    gachaAnimation.revealed = true;
+    playSe("gachaOpen");
+    playSe(gachaAnimation.result.rarity.se);
+  }
+  if (phase === "result") setBgmDucked(false);
+  renderGachaAnimation();
+}
+
+function finishGachaAnimation() {
+  if (gachaAnimation.phase === "idle") return;
+  clearGachaTimers();
+  if (!gachaAnimation.revealed) {
+    gachaAnimation.revealed = true;
+    playSe("gachaOpen");
+    playSe(gachaAnimation.result.rarity.se);
+  }
+  gachaAnimation.phase = "result";
+  setBgmDucked(false);
+  renderGachaAnimation();
+}
+
+function closeGachaAnimation(nextView = "farm") {
+  clearGachaTimers();
+  gachaAnimation.button?.classList.remove("gacha-button-press");
+  els.animalGachaPanel.classList.remove("shaking");
+  gachaAnimation = { phase: "idle", result: null, timers: [], button: null, revealed: false };
+  setBgmDucked(false);
+  els.gachaOverlay.hidden = true;
+  els.gachaOverlay.innerHTML = "";
+  activeView = nextView;
+  render();
+}
+
+function handleGachaOverlayClick(event) {
+  const button = event.target.closest("[data-gacha-action]");
+  if (!button) return;
+  const action = button.dataset.gachaAction;
+  if (action === "skip") { finishGachaAnimation(); return; }
+  if (action === "register") { showToast("ずかんにとうろくしました"); closeGachaAnimation("farm"); return; }
+  if (action === "again") {
+    closeGachaAnimation("gacha");
+    if (getStats().coinBalance < ANIMAL_GACHA_COST) { showToast("コインが足りません"); return; }
+    setTimeout(drawAnimalGacha, 0);
+    return;
+  }
+  closeGachaAnimation("farm");
+}
+
+function renderGachaAnimation() {
+  const { phase, result } = gachaAnimation;
+  if (phase === "idle" || !result) { els.gachaOverlay.hidden = true; return; }
+  const rarityClass = result.rarity.animation;
+  const phaseClass = `phase-${phase}`;
+  els.gachaOverlay.hidden = false;
+  els.gachaOverlay.innerHTML = `
+    <div class="gacha-stage ${rarityClass} ${phaseClass}" role="dialog" aria-modal="true" aria-label="どうぶつガチャの結果">
+      ${phase === "result" ? "" : '<button class="gacha-skip" type="button" data-gacha-action="skip">スキップ</button>'}
+      <div class="gacha-light"></div>
+      <div class="gacha-burst"></div>
+      <div class="gacha-sparkles">${gachaSparkles(result.rarity)}</div>
+      <div class="gacha-particles">${gachaParticles(result.rarity, phase)}</div>
+      <div class="gacha-message">${gachaMessage(phase)}</div>
+      ${gachaCapsule(phase)}
+      ${gachaOpenCapsule(phase)}
+      ${gachaAnimalReveal(result, phase)}
+      ${gachaResultPanel(result, phase)}
+    </div>`;
+}
+
+function gachaMessage(phase) {
+  const messages = {
+    press: ["どうぶつガチャ", "ボタンをおした！"],
+    shake: ["どうぶつガチャ", "ガチャガチャ..."],
+    fly: ["どうぶつガチャ", "カプセルがとびだした！"],
+    charge: ["どうぶつガチャ", "もうすぐあくよ..."],
+    silhouette: ["だれかな？", "すこしだけ見えてきた！"],
+    reveal: ["やったね！", "どうぶつがあらわれた！"],
+    result: ["であえたよ", "牧場にあたらしい仲間！"]
+  }[phase] || ["どうぶつガチャ", "わくわく"];
+  return `<p class="eyebrow">${messages[0]}</p><h2>${messages[1]}</h2>`;
+}
+
+function gachaCapsule(phase) {
+  return ["press", "shake", "fly", "charge"].includes(phase) ? '<div class="gacha-capsule" aria-hidden="true"></div>' : "";
+}
+
+function gachaOpenCapsule(phase) {
+  return ["silhouette", "reveal", "result"].includes(phase) ? '<div class="gacha-open-capsule" aria-hidden="true"><span></span><span></span></div>' : "";
+}
+
+function gachaAnimalReveal(result, phase) {
+  if (!["silhouette", "reveal", "result"].includes(phase)) return "";
+  const revealClass = phase === "silhouette" ? "gacha-silhouette" : "gacha-reveal";
+  const newBadge = result.isNew && phase !== "silhouette" ? '<div class="new-badge">NEW!</div>' : "";
+  return `<div class="gacha-animal-wrap ${revealClass}">${newBadge}${animalArt(result.type.id, "happy", result.animal.name).replace("farm-animal", "gacha-animal")}</div>`;
+}
+
+function gachaResultPanel(result, phase) {
+  if (phase !== "result") return "";
+  const againDisabled = getStats().coinBalance < ANIMAL_GACHA_COST ? " disabled" : "";
+  return `
+    <div class="gacha-result">
+      <span class="gacha-rarity ${result.rarity.animation}">${escapeHtml(result.rarity.label)}</span>
+      <h2>${escapeHtml(result.animal.name)}</h2>
+      <p class="helper-text">${escapeHtml(result.type.description)}</p>
+      <div class="gacha-actions">
+        <button class="secondary-button" type="button" data-gacha-action="register">ずかんにとうろく</button>
+        <button class="secondary-button" type="button" data-gacha-action="again"${againDisabled}>もういちど</button>
+        <button class="primary-button" type="button" data-gacha-action="ok">OK</button>
+      </div>
+    </div>`;
+}
+
+function gachaSparkles(rarity) {
+  const count = { normal: 12, rare: 18, superRare: 24, secret: 32 }[rarity.animation] || 12;
+  return Array.from({ length: count }, (_, index) => {
+    const x = 8 + ((index * 37) % 84);
+    const y = 10 + ((index * 53) % 78);
+    const size = 5 + (index % 4) * 2;
+    const delay = (index % 8) * 0.16;
+    return `<span class="sparkle" style="--x:${x}%;--y:${y}%;--s:${size}px;--d:${delay}s"></span>`;
+  }).join("");
+}
+
+function gachaParticles(rarity, phase) {
+  if (!["silhouette", "reveal", "result"].includes(phase)) return "";
+  const shapes = rarity.animation === "normal" ? ["★", "♡"] : rarity.animation === "rare" ? ["★", "✦", "♡"] : ["★", "✦", "♡", "◆"];
+  const colors = rarity.animation === "secret" ? ["#ff6fa4", "#43a4ff", "#f0b84a", "#55a86a"] : rarity.animation === "superRare" ? ["#43a4ff", "#ff8fc4", "#f0b84a"] : rarity.animation === "rare" ? ["#f0b84a", "#fff3a8", "#e56f5e"] : ["#f0b84a", "#74b978"];
+  const count = { normal: 18, rare: 26, superRare: 34, secret: 44 }[rarity.animation] || 18;
+  return Array.from({ length: count }, (_, index) => {
+    const x = 9 + ((index * 29) % 84);
+    const y = 56 + ((index * 17) % 26);
+    const size = 14 + (index % 5) * 3;
+    const delay = (index % 12) * 0.08;
+    const shape = shapes[index % shapes.length];
+    const color = colors[index % colors.length];
+    return `<span class="particle" style="--x:${x}%;--y:${y}%;--s:${size}px;--d:${delay}s;--c:${color}">${shape}</span>`;
+  }).join("");
+}
+
+function clearGachaTimers() {
+  gachaAnimation.timers.forEach((timer) => clearTimeout(timer));
+  gachaAnimation.timers = [];
+}
+
+function hasKnownAnimalType(typeId) {
+  return state.animals.some((animal) => animal.type === typeId) || state.album.some((record) => record.type === typeId);
 }
 
 function renameAnimal(id) {
@@ -480,6 +801,7 @@ function checkAnimalGratitude(animal) {
     state.coupons.push(coupon);
     addAlbum(animal, "恩返し", `${coupon.title}を残して旅立ちました。`, "farewell");
     animal.status = "grateful"; animal.leftAt = new Date().toISOString();
+    playSe("reward");
     showToast(`${animal.name}が恩返しクーポンをくれました`);
   }
 }
@@ -604,7 +926,7 @@ function statusIcon(label) { return { "お腹": "icon-feed.png", "水分": "icon
 function calendarStamp(className) { if (className === "full") return assetImage("calendar-stamp-perfect.png", "", "calendar-stamp"); if (className === "some") return assetImage("calendar-stamp-done.png", "", "calendar-stamp"); return ""; }
 function assetPath(fileName) { return `${IMAGE_ROOT}/${fileName}`; }
 function assetImage(fileName, alt = "", className = "asset-image") { return `<img class="${className}" src="${assetPath(fileName)}" alt="${escapeHtml(alt)}" loading="lazy">`; }
-function moveAnimal(direction) { const animals = getActiveAnimals(); if (!animals.length) return; selectedAnimalIndex = (selectedAnimalIndex + direction + animals.length) % animals.length; render(); }
+function moveAnimal(direction) { const animals = getActiveAnimals(); if (!animals.length) return; playSe("transition"); selectedAnimalIndex = (selectedAnimalIndex + direction + animals.length) % animals.length; render(); }
 function todayKey() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 function lastDates(count) { return Array.from({ length: count }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - index); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }); }
 function daysBetween(fromKey, toKey) { const from = new Date(`${fromKey}T00:00:00`); const to = new Date(`${toKey}T00:00:00`); return Math.max(0, Math.floor((to - from) / 86400000)); }
